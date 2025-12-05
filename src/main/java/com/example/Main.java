@@ -4,10 +4,11 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.Scanner;
 
 public class Main {
 
-    static void main(String[] args) {
+    public static void main(String[] args) {
         if (isDevMode(args)) {
             DevDatabaseInitializer.start();
         }
@@ -26,11 +27,77 @@ public class Main {
                             "as system properties (-Dkey=value) or environment variables.");
         }
 
+        Scanner scanner = new Scanner(System.in);
         try (Connection connection = DriverManager.getConnection(jdbcUrl, dbUser, dbPass)) {
+            System.out.println("Connected to the database");
+            if (!autenticationForUser(connection, scanner)) {
+                System.out.println("Username or password is incorrect. Exiting application...");
+                return;
+            }
+            optionMenu();
+
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
         //Todo: Starting point for your code
+        //TODO: Skapa en autentisering för inloggning i databasen
+        //TODO: Skapa metoder för val i menyn
+        //TODO: Switch-sats som kopplar till metoder för val
+
+    }
+
+    private boolean autenticationForUser(Connection connection, Scanner scanner) {
+        boolean isLoggedIn = false;
+        String username ="";
+        String password ="";
+        while (!isLoggedIn) {
+            System.out.println("Please enter the top secret username: ");
+            username = scanner.nextLine().trim();
+            if (username.equals("0")) {
+                return false;
+            }
+            System.out.println("Please enter the top secret password: ");
+            password = scanner.nextLine();
+            if (password.equals("0")) {
+                return false;
+            }
+        }
+        return username.equals(username) && password.equals(password);
+    }
+
+    private void optionMenu() {
+        System.out.println("Welcome to the CLI - Database");
+        System.out.println("Please select an option:");
+        System.out.println("1) List moon missions (prints spacecraft names from `moon_mission`).");
+        System.out.println("2) Get a moon mission by mission_id (prints details for that mission).");
+        System.out.println("3) Count missions for a given year (prompts: year; prints the number of missions launched that year).");
+        System.out.println("4) Create an account (prompts: first name, last name, ssn, password; prints confirmation).");
+        System.out.println("5) Update an account password (prompts: user_id, new password; prints confirmation).");
+        System.out.println("6) Delete an account (prompts: user_id; prints confirmation).");
+        System.out.println("0) Exit.");
+
+    }
+    private void listMoon_missions() {
+
+    }
+    private void getAMoonMissionBy_id() {
+
+    }
+
+    private void countMissionsPerYear() {
+
+    }
+
+    private void createAccount() {
+
+    }
+
+    private void updateAccount() {
+
+    }
+
+    private void deleteAccount() {
+
     }
 
     /**
