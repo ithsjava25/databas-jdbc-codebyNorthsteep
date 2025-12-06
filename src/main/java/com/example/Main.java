@@ -1,8 +1,6 @@
 package com.example;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.Arrays;
 import java.util.Scanner;
 
@@ -30,15 +28,19 @@ public class Main {
         Scanner scanner = new Scanner(System.in);
         try (Connection connection = DriverManager.getConnection(jdbcUrl, dbUser, dbPass)) {
             System.out.println("Connected to the database");
-            if (!autenticationForUser(connection, scanner)) {
+
+            if (!authenticationForUser(connection, scanner)) {
                 System.out.println("Username or password is incorrect. Exiting application...");
                 return;
             }
-            optionMenu();
+            //TODO: Körbar metod för menyval istället för optionMenu, Case? Körbar while(true)
+            runOptionMenu(connection, scanner);
+            //return?
 
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+
         //Todo: Starting point for your code
         //TODO: Skapa en autentisering för inloggning i databasen
         //TODO: Skapa metoder för val i menyn
@@ -46,7 +48,7 @@ public class Main {
 
     }
 
-    private boolean autenticationForUser(Connection connection, Scanner scanner) {
+    private boolean authenticationForUser(Connection connection, Scanner scanner) {
         boolean isLoggedIn = false;
         String username ="";
         String password ="";
@@ -61,8 +63,47 @@ public class Main {
             if (password.equals("0")) {
                 return false;
             }
+
+            //TODO: Hitta varför users ej fungerar
+            String sql = "SELECT username, password FROM users WHERE username = ? AND password = ?";
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setString(1, username);
+                statement.setString(2, password);
+                try(ResultSet result = statement.executeQuery()) {
+                    if (result.next()) {
+                        System.out.println("Logged in successfully.");
+                        isLoggedIn = true;
+                    }
+                    else {
+                        System.out.println("Username or password is incorrect. Exiting application...");
+                    }
+                }
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
         }
-        return username.equals(username) && password.equals(password);
+        return true;
+    }
+
+    private void runOptionMenu(Connection connection, Scanner scanner) {
+        while (true) {
+            optionMenu();
+            String choice = scanner.nextLine();
+            switch (choice) {
+                case "1" -> listMoonMissions(connection, scanner);
+                case "2" -> getMoonMissionById(connection, scanner);
+                case "3" -> countMissionsPerYear(connection, scanner);
+                case "4" -> createAccount(connection, scanner);
+                case "5" -> updateAccount(connection, scanner);
+                case "6" -> deleteAccount(connection, scanner);
+                case "0" -> {
+                    System.out.println("Exiting application...");
+                    return;
+                }
+                default -> System.out.println("Invalid choice. Try again.");
+
+            }
+        }
     }
 
     private void optionMenu() {
@@ -77,26 +118,27 @@ public class Main {
         System.out.println("0) Exit.");
 
     }
-    private void listMoon_missions() {
+
+    private void listMoonMissions(Connection connection, Scanner scanner) {
 
     }
-    private void getAMoonMissionBy_id() {
-
-    }
-
-    private void countMissionsPerYear() {
+    private void getMoonMissionById(Connection connection, Scanner scanner) {
 
     }
 
-    private void createAccount() {
+    private void countMissionsPerYear(Connection connection, Scanner scanner) {
 
     }
 
-    private void updateAccount() {
+    private void createAccount(Connection connection, Scanner scanner) {
 
     }
 
-    private void deleteAccount() {
+    private void updateAccount(Connection connection, Scanner scanner) {
+
+    }
+
+    private void deleteAccount(Connection connection, Scanner scanner) {
 
     }
 
