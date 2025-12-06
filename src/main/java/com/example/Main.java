@@ -33,7 +33,6 @@ public class Main {
                 System.out.println("Username or password is incorrect. Exiting application...");
                 return;
             }
-            //TODO: Körbar metod för menyval istället för optionMenu, Case? Körbar while(true)
             runOptionMenu(connection, scanner);
             //return?
 
@@ -53,20 +52,19 @@ public class Main {
         String username ="";
         String password ="";
         while (!isLoggedIn) {
-            System.out.println("Please enter the top secret username: ");
+            System.out.print("Please enter the top secret username: ");
             username = scanner.nextLine().trim();
             if (username.equals("0")) {
                 return false;
             }
-            System.out.println("Please enter the top secret password: ");
-            password = scanner.nextLine();
+            System.out.print("Please enter the top secret password: ");
+            password = scanner.nextLine().trim();
             if (password.equals("0")) {
                 return false;
             }
 
-            //TODO: Hitta varför users ej fungerar
-            String sql = "SELECT username, password FROM users WHERE username = ? AND password = ?";
-            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            String query = "SELECT name, password FROM account WHERE name = ? AND password = ?";
+            try (PreparedStatement statement = connection.prepareStatement(query)) {
                 statement.setString(1, username);
                 statement.setString(2, password);
                 try(ResultSet result = statement.executeQuery()) {
@@ -75,14 +73,14 @@ public class Main {
                         isLoggedIn = true;
                     }
                     else {
-                        System.out.println("Username or password is incorrect. Exiting application...");
+                        System.out.println("Username or password is incorrect. Try again.");
                     }
                 }
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
         }
-        return true;
+        return isLoggedIn;
     }
 
     private void runOptionMenu(Connection connection, Scanner scanner) {
@@ -120,10 +118,24 @@ public class Main {
     }
 
     private void listMoonMissions(Connection connection, Scanner scanner) {
-
+    String query = "select spacecraft from moon_mission";
+    try (PreparedStatement statement = connection.prepareStatement(query)) {
+        statement.setInt(1, Integer.parseInt(scanner.nextLine()));
+        ResultSet result = statement.executeQuery();
+        while (result.next()) {
+            System.out.println(result.getString(1));
+        }
+    } catch (SQLException e) {
+        throw new RuntimeException(e);
+    }
     }
     private void getMoonMissionById(Connection connection, Scanner scanner) {
-
+        String query = "select * from moon_mission where mission_id = ?";
+        try (PreparedStatement statement = connection.prepareStatement(query)){
+            statement.setInt(1, Integer.parseInt(scanner.nextLine()));
+        }catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void countMissionsPerYear(Connection connection, Scanner scanner) {
