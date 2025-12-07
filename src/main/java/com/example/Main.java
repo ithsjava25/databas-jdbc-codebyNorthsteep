@@ -49,8 +49,8 @@ public class Main {
 
     private boolean authenticationForUser(Connection connection, Scanner scanner) {
         boolean isLoggedIn = false;
-        String username ="";
-        String password ="";
+        String username = "";
+        String password = "";
         while (!isLoggedIn) {
             System.out.print("Please enter the top secret username: ");
             username = scanner.nextLine().trim();
@@ -67,12 +67,11 @@ public class Main {
             try (PreparedStatement statement = connection.prepareStatement(query)) {
                 statement.setString(1, username);
                 statement.setString(2, password);
-                try(ResultSet result = statement.executeQuery()) {
+                try (ResultSet result = statement.executeQuery()) {
                     if (result.next()) {
                         System.out.println("Logged in successfully.");
                         isLoggedIn = true;
-                    }
-                    else {
+                    } else {
                         System.out.println("Username or password is incorrect. Try again.");
                     }
                 }
@@ -118,23 +117,43 @@ public class Main {
     }
 
     private void listMoonMissions(Connection connection, Scanner scanner) {
-    String query = "select spacecraft from moon_mission";
-    try (PreparedStatement statement = connection.prepareStatement(query)) {
-        statement.setInt(1, Integer.parseInt(scanner.nextLine()));
-        ResultSet result = statement.executeQuery();
-        while (result.next()) {
-            System.out.println(result.getString(1));
-        }
-    } catch (SQLException e) {
-        throw new RuntimeException(e);
-    }
-    }
-    private void getMoonMissionById(Connection connection, Scanner scanner) {
-        String query = "select * from moon_mission where mission_id = ?";
-        try (PreparedStatement statement = connection.prepareStatement(query)){
-            statement.setInt(1, Integer.parseInt(scanner.nextLine()));
-        }catch (SQLException e) {
+        String query = "select spacecraft from moon_mission";
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            ResultSet result = statement.executeQuery();
+            while (result.next()) {
+                System.out.println(result.getString("spacecraft"));
+            }
+        } catch (SQLException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private void getMoonMissionById(Connection connection, Scanner scanner) {
+        System.out.print("Please enter the moon mission id: ");
+
+        int missionId = Integer.parseInt(scanner.nextLine());
+
+        String query = "select * from moon_mission where mission_id = ?";
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setInt(1, missionId);
+            ResultSet result = statement.executeQuery();
+
+            ResultSetMetaData metaData = result.getMetaData();
+            int columnCount = metaData.getColumnCount();
+
+            if (result.next()) {
+                for (int i = 1; i <= columnCount; i++) {
+                    System.out.print(metaData.getColumnLabel(i) + "\t");
+                }
+                System.out.println();
+                for (int i = 1; i <= columnCount; i++) {
+                    Object columnValue = result.getObject(i);
+                    System.out.print(columnValue + "\t");
+                }
+                System.out.println();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Error retrieving mission" + e);
         }
     }
 
