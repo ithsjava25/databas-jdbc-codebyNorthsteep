@@ -25,8 +25,8 @@ public class Main {
                             "as system properties (-Dkey=value) or environment variables.");
         }
 
-        Scanner scanner = new Scanner(System.in);
-        try (Connection connection = DriverManager.getConnection(jdbcUrl, dbUser, dbPass)) {
+
+        try (Scanner scanner = new Scanner(System.in); Connection connection = DriverManager.getConnection(jdbcUrl, dbUser, dbPass)) {
             System.out.println("Connected to the database");
 
             if (!authenticationForUser(connection, scanner)) {
@@ -34,7 +34,6 @@ public class Main {
                 return;
             }
             runOptionMenu(connection, scanner);
-            //return?
 
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -49,8 +48,8 @@ public class Main {
 
     private boolean authenticationForUser(Connection connection, Scanner scanner) {
         boolean isLoggedIn = false;
-        String username = "";
-        String password = "";
+        String username;
+        String password;
         while (!isLoggedIn) {
             System.out.print("Please enter the top secret username: ");
             username = scanner.nextLine().trim();
@@ -84,10 +83,11 @@ public class Main {
 
     private void runOptionMenu(Connection connection, Scanner scanner) {
         while (true) {
+            System.out.println("Welcome to the CLI - Database");
             optionMenu();
             String choice = scanner.nextLine();
             switch (choice) {
-                case "1" -> listMoonMissions(connection, scanner);
+                case "1" -> listMoonMissions(connection);
                 case "2" -> getMoonMissionById(connection, scanner);
                 case "3" -> countMissionsPerYear(connection, scanner);
                 case "4" -> createAccount(connection, scanner);
@@ -104,7 +104,7 @@ public class Main {
     }
 
     private void optionMenu() {
-        System.out.println("Welcome to the CLI - Database");
+
         System.out.println("Please select an option:");
         System.out.println("1) List moon missions (prints spacecraft names from `moon_mission`).");
         System.out.println("2) Get a moon mission by mission_id (prints details for that mission).");
@@ -116,7 +116,7 @@ public class Main {
 
     }
 
-    private void listMoonMissions(Connection connection, Scanner scanner) {
+    private void listMoonMissions(Connection connection) {
         String query = "select spacecraft from moon_mission";
         try (PreparedStatement statement = connection.prepareStatement(query)) {
             ResultSet result = statement.executeQuery();
@@ -124,7 +124,7 @@ public class Main {
                 System.out.println(result.getString("spacecraft"));
             }
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("No data found." + e);
         }
     }
 
@@ -177,7 +177,42 @@ public class Main {
     }
 
     private void createAccount(Connection connection, Scanner scanner) {
+        String query = "insert into account(password, first_name, last_name, ssn) values (?,?,?,?)";
+        System.out.println("Please enter your account information: ");
 
+        try (PreparedStatement preparedStatement = connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
+            System.out.println("Enter your account password: ");
+            preparedStatement.setString(1, scanner.nextLine().trim());
+
+            System.out.println("Enter your account first name: ");
+            preparedStatement.setString(2, scanner.nextLine().trim());
+
+            System.out.println("Enter your account last name: ");
+            preparedStatement.setString(3, scanner.nextLine().trim());
+
+            System.out.println("Enter your account ssn(10 digits xxxx-xx): ");
+            preparedStatement.setString(4, scanner.nextLine().trim());
+
+
+            int rowsInserted = preparedStatement.executeUpdate();
+            if (rowsInserted == 1) {
+
+            try (ResultSet resultSet = preparedStatement.getGeneratedKeys()) {
+               if(resultSet.next()) {
+                   long newID = resultSet.getLong(1);
+                   System.out.println(("User created with generated ID:" + newID));
+               } else {
+                   System.out.println("No key generated");
+               }
+            }
+        } else {
+                System.out.println("Insert failed");
+            }
+
+
+        }catch (SQLException e){
+            throw new RuntimeException("Error trying to create account. " + e);
+        }
     }
 
     private void updateAccount(Connection connection, Scanner scanner) {
