@@ -179,19 +179,20 @@ public class Main {
     private void createAccount(Connection connection, Scanner scanner) {
         String query = "insert into account(password, first_name, last_name, ssn) values (?,?,?,?)";
         System.out.println("Please enter your account information: ");
+        String input = scanner.nextLine();
 
         try (PreparedStatement preparedStatement = connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
             System.out.println("Enter your account password: ");
-            preparedStatement.setString(1, scanner.nextLine().trim());
+            preparedStatement.setString(1, input);
 
             System.out.println("Enter your account first name: ");
-            preparedStatement.setString(2, scanner.nextLine().trim());
+            preparedStatement.setString(2, input);
 
             System.out.println("Enter your account last name: ");
-            preparedStatement.setString(3, scanner.nextLine().trim());
+            preparedStatement.setString(3, input);
 
             System.out.println("Enter your account ssn(10 digits xxxx-xx): ");
-            preparedStatement.setString(4, scanner.nextLine().trim());
+            preparedStatement.setString(4, input);
 
 
             int rowsInserted = preparedStatement.executeUpdate();
@@ -216,11 +217,41 @@ public class Main {
     }
 
     private void updateAccount(Connection connection, Scanner scanner) {
+        //Update an account password (prompts: user_id, new password; prints confirmation).
+        String query = "update account set password = ? where user_id = ?";
 
+        System.out.println("Please enter your user id to change password: ");
+        int id = Integer.parseInt(scanner.nextLine().trim());
+
+        System.out.println("Please enter your new account password: ");
+        String newPassword = scanner.nextLine();
+
+        try (PreparedStatement preparedStatement = connection.prepareStatement(query)){
+            preparedStatement.setString(1, newPassword);
+            preparedStatement.setInt(2, id);
+
+            int rowsUpdated = preparedStatement.executeUpdate();
+            if (rowsUpdated == 1) {
+                System.out.println("Your account password has been updated");
+            }
+        }catch (SQLException e){
+            throw new RuntimeException("Error trying to change password. " + e);
+        }
     }
 
     private void deleteAccount(Connection connection, Scanner scanner) {
+        String query = "delete from account where user_id = ?";
+        System.out.println("Please enter your user id to delete account: ");
+        int id = Integer.parseInt(scanner.nextLine().trim());
 
+        try(PreparedStatement preparedStatement = connection.prepareStatement(query)){
+            preparedStatement.setInt(1, id);
+            int rowsDeleted = preparedStatement.executeUpdate();
+            if (rowsDeleted == 1) {
+                System.out.println("Your account password has been deleted");
+            }
+    }catch (SQLException e){
+        throw new RuntimeException("Error trying to delete account. " + e);}
     }
 
     /**
