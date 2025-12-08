@@ -41,9 +41,9 @@ public class Main {
         }
 
         //Todo: Starting point for your code
-        //TODO: Skapa en autentisering för inloggning i databasen
+
         //TODO: Skapa metoder för val i menyn
-        //TODO: Switch-sats som kopplar till metoder för val
+
 
     }
 
@@ -72,7 +72,7 @@ public class Main {
                         System.out.println("Logged in successfully.");
                         isLoggedIn = true;
                     } else {
-                        System.out.println("Username or password is incorrect. Try again.");
+                        System.out.println("Invalid username or password. Try again, or exit with '0'.");
                     }
                 }
             } catch (SQLException e) {
@@ -158,7 +158,22 @@ public class Main {
     }
 
     private void countMissionsPerYear(Connection connection, Scanner scanner) {
+        System.out.println("Please select year (e.g 1958): ");
+        String query = "select count(*) as numberOfMissions from moon_mission where launch_date like ?";
+        int year = Integer.parseInt(scanner.nextLine());
 
+        try(PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1,year + "%");
+            ResultSet result = statement.executeQuery();
+
+            if (result.next()) {
+                int count = result.getInt("numberOfMissions");
+                System.out.println("Number of missions for year " + year + ": " + count);
+            }
+
+        } catch (SQLException e) {
+            throw new RuntimeException("No data from selected year found. " + e);
+        }
     }
 
     private void createAccount(Connection connection, Scanner scanner) {
