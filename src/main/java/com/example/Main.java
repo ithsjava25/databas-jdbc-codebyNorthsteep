@@ -39,25 +39,20 @@ public class Main {
             throw new RuntimeException(e);
         }
 
-        //Todo: Starting point for your code
-
-        //TODO: Skapa metoder för val i menyn
-
 
     }
 
     private boolean authenticationForUser(Connection connection, Scanner scanner) {
-        boolean isLoggedIn = false;
-        String username;
-        String password;
-        while (!isLoggedIn) {
+        //Note from CodeRabbit - production code should use password hashing.
+
+        while (true) {
             System.out.print("Please enter the top secret username: ");
-            username = scanner.nextLine().trim();
+            String username = scanner.nextLine().trim();
             if (username.equals("0")) {
                 return false;
             }
             System.out.print("Please enter the top secret password: ");
-            password = scanner.nextLine().trim();
+            String password = scanner.nextLine().trim();
             if (password.equals("0")) {
                 return false;
             }
@@ -69,7 +64,7 @@ public class Main {
                 try (ResultSet result = statement.executeQuery()) {
                     if (result.next()) {
                         System.out.println("Logged in successfully.");
-                        isLoggedIn = true;
+                        return true;
                     } else {
                         System.out.println("Invalid username or password. Try again, or exit with '0'.");
                     }
@@ -78,7 +73,7 @@ public class Main {
                 throw new RuntimeException(e);
             }
         }
-        return isLoggedIn;
+
     }
 
     private void runOptionMenu(Connection connection, Scanner scanner) {
@@ -119,9 +114,10 @@ public class Main {
     private void listMoonMissions(Connection connection) {
         String query = "select spacecraft from moon_mission";
         try (PreparedStatement statement = connection.prepareStatement(query)) {
-            ResultSet result = statement.executeQuery();
-            while (result.next()) {
-                System.out.println(result.getString("spacecraft"));
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    System.out.println(result.getString("spacecraft"));
+                }
             }
         } catch (SQLException e) {
             throw new RuntimeException("No data found." + e);
@@ -131,26 +127,34 @@ public class Main {
     private void getMoonMissionById(Connection connection, Scanner scanner) {
         System.out.print("Please enter the moon mission id: ");
 
-        int missionId = Integer.parseInt(scanner.nextLine());
+        int missionId;
+        try {
+            missionId = Integer.parseInt(scanner.nextLine().trim());
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid mission ID. Please enter a number.");
+            return;
+        }
 
         String query = "select * from moon_mission where mission_id = ?";
         try (PreparedStatement statement = connection.prepareStatement(query)) {
             statement.setInt(1, missionId);
-            ResultSet result = statement.executeQuery();
+            try (ResultSet result = statement.executeQuery()) {
 
-            ResultSetMetaData metaData = result.getMetaData();
-            int columnCount = metaData.getColumnCount();
+                ResultSetMetaData metaData = result.getMetaData();
+                int columnCount = metaData.getColumnCount();
 
-            if (result.next()) {
-                for (int i = 1; i <= columnCount; i++) {
-                    System.out.print(metaData.getColumnLabel(i) + "\t");
+                if (result.next()) {
+                    for (int i = 1; i <= columnCount; i++) {
+                        System.out.print(metaData.getColumnLabel(i) + "\t");
+                    }
+                    System.out.println();
+                    for (int i = 1; i <= columnCount; i++) {
+                        Object columnValue = result.getObject(i);
+                        System.out.print(columnValue + "\t");
+                    }
+                } else {
+                    System.out.println("No mission found with ID:  " + missionId);
                 }
-                System.out.println();
-                for (int i = 1; i <= columnCount; i++) {
-                    Object columnValue = result.getObject(i);
-                    System.out.print(columnValue + "\t");
-                }
-                System.out.println();
             }
         } catch (SQLException e) {
             throw new RuntimeException("Error retrieving mission" + e);
@@ -160,58 +164,67 @@ public class Main {
     private void countMissionsPerYear(Connection connection, Scanner scanner) {
         System.out.println("Please select year (e.g 1958): ");
         String query = "select count(*) as numberOfMissions from moon_mission where launch_date like ?";
-        int year = Integer.parseInt(scanner.nextLine());
+        int year;
 
-        try(PreparedStatement statement = connection.prepareStatement(query)) {
-            statement.setString(1,year + "%");
-            ResultSet result = statement.executeQuery();
+        try {
+            year = Integer.parseInt(scanner.nextLine().trim());
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid year. Please enter a number.");
+            return;
+        }
 
-            if (result.next()) {
-                int count = result.getInt("numberOfMissions");
-                System.out.println("Number of missions for year " + year + ": " + count);
+
+        try (PreparedStatement statement = connection.prepareStatement(query)) {
+            statement.setString(1, year + "%");
+            try (ResultSet result = statement.executeQuery()) {
+
+                if (result.next()) {
+                    int count = result.getInt("numberOfMissions");
+                    System.out.printf("Number of missions launched in %d: %d%n", year, count);
+                }
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("No data from selected year found. " + e);
+            throw new RuntimeException("Failed to count missions for year " + year + e);
         }
     }
 
     private void createAccount(Connection connection, Scanner scanner) {
         String query = "insert into account(password, first_name, last_name, ssn) values (?,?,?,?)";
         System.out.println("Please enter your account information: ");
-        String input = scanner.nextLine();
+
 
         try (PreparedStatement preparedStatement = connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
             System.out.println("Enter your account password: ");
-            preparedStatement.setString(1, input);
+            preparedStatement.setString(1, scanner.nextLine());
 
             System.out.println("Enter your account first name: ");
-            preparedStatement.setString(2, input);
+            preparedStatement.setString(2, scanner.nextLine());
 
             System.out.println("Enter your account last name: ");
-            preparedStatement.setString(3, input);
+            preparedStatement.setString(3, scanner.nextLine());
 
             System.out.println("Enter your account ssn(10 digits xxxx-xx): ");
-            preparedStatement.setString(4, input);
+            preparedStatement.setString(4, scanner.nextLine());
 
 
             int rowsInserted = preparedStatement.executeUpdate();
             if (rowsInserted == 1) {
 
-            try (ResultSet resultSet = preparedStatement.getGeneratedKeys()) {
-               if(resultSet.next()) {
-                   long newID = resultSet.getLong(1);
-                   System.out.println(("User created with generated ID:" + newID));
-               } else {
-                   System.out.println("No key generated");
-               }
-            }
-        } else {
+                try (ResultSet resultSet = preparedStatement.getGeneratedKeys()) {
+                    if (resultSet.next()) {
+                        long newID = resultSet.getLong(1);
+                        System.out.println(("User created with generated ID:" + newID));
+                    } else {
+                        System.out.println("No key generated");
+                    }
+                }
+            } else {
                 System.out.println("Insert failed");
             }
 
 
-        }catch (SQLException e){
+        } catch (SQLException e) {
             throw new RuntimeException("Error trying to create account. " + e);
         }
     }
@@ -226,15 +239,17 @@ public class Main {
         System.out.println("Please enter your new account password: ");
         String newPassword = scanner.nextLine();
 
-        try (PreparedStatement preparedStatement = connection.prepareStatement(query)){
+        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
             preparedStatement.setString(1, newPassword);
             preparedStatement.setInt(2, id);
 
             int rowsUpdated = preparedStatement.executeUpdate();
             if (rowsUpdated == 1) {
-                System.out.println("Your account password has been updated");
+                System.out.println("Your account has been updated");
+            } else {
+                System.out.printf("No account found with ID: %d", id);
             }
-        }catch (SQLException e){
+        } catch (SQLException e) {
             throw new RuntimeException("Error trying to change password. " + e);
         }
     }
@@ -244,14 +259,15 @@ public class Main {
         System.out.println("Please enter your user id to delete account: ");
         int id = Integer.parseInt(scanner.nextLine().trim());
 
-        try(PreparedStatement preparedStatement = connection.prepareStatement(query)){
+        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
             preparedStatement.setInt(1, id);
             int rowsDeleted = preparedStatement.executeUpdate();
             if (rowsDeleted == 1) {
                 System.out.println("Your account password has been deleted");
             }
-    }catch (SQLException e){
-        throw new RuntimeException("Error trying to delete account. " + e);}
+        } catch (SQLException e) {
+            throw new RuntimeException("Error trying to delete account. " + e);
+        }
     }
 
     /**
