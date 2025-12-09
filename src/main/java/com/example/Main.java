@@ -74,7 +74,7 @@ public class Main {
                 System.out.println("Login successful.");
                 return true;
             } else {
-                System.out.println("Invalid username or password. Exiting application...");
+                System.out.println("Invalid username or password. Please try again or enter '0' to exit.");
             }
         }
 
@@ -204,7 +204,7 @@ public class Main {
 
 
             int newId = accountRepository.createAccount(firstName, lastName, ssn, password);
-            if (newId > 1) {
+            if (newId > 0) {
                 System.out.print("Account created successfully!\n");
             } else {
                 System.out.println("Failed to create account.");

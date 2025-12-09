@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 public class MoonMissionRepositoryImplJdbc implements  MoonMissionRepository {
-    DataSource dataSource;
+    private final DataSource dataSource;
 
     public MoonMissionRepositoryImplJdbc(DataSource dataSource) {
         this.dataSource = dataSource;
@@ -59,7 +59,7 @@ public class MoonMissionRepositoryImplJdbc implements  MoonMissionRepository {
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Error retrieving mission" + e);
+            throw new RuntimeException("Error retrieving mission: " + e);
         }
         return Optional.empty();
     }
@@ -83,7 +83,7 @@ public class MoonMissionRepositoryImplJdbc implements  MoonMissionRepository {
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to count missions for year " + year + e);
+            throw new RuntimeException("Failed to count missions for year " + year + ":" + e);
         }
 
     }
