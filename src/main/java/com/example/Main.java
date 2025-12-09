@@ -77,8 +77,10 @@ public class Main {
     }
 
     private void runOptionMenu(Connection connection, Scanner scanner) {
+
+        System.out.println("Welcome to the CLI - Database");
         while (true) {
-            System.out.println("Welcome to the CLI - Database");
+
             optionMenu();
             String choice = scanner.nextLine().trim();
             switch (choice) {
@@ -195,8 +197,6 @@ public class Main {
 
 
         try (PreparedStatement preparedStatement = connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
-            System.out.println("Enter your account password: ");
-            preparedStatement.setString(1, scanner.nextLine().trim());
 
             System.out.println("Enter your account first name: ");
             preparedStatement.setString(2, scanner.nextLine().trim());
@@ -206,6 +206,9 @@ public class Main {
 
             System.out.println("Enter your account ssn(10 digits xxxxxx-xxxx): ");
             preparedStatement.setString(4, scanner.nextLine().trim());
+
+            System.out.println("Enter your account password: ");
+            preparedStatement.setString(1, scanner.nextLine().trim());
 
 
             int rowsInserted = preparedStatement.executeUpdate();
@@ -255,7 +258,7 @@ public class Main {
 
             int rowsUpdated = preparedStatement.executeUpdate();
             if (rowsUpdated == 1) {
-                System.out.println("Your account has been updated");
+                System.out.println("Your account password has been updated");
             } else {
                 System.out.printf("No account found with ID: %d", id);
             }
@@ -279,7 +282,7 @@ public class Main {
             preparedStatement.setInt(1, id);
             int rowsDeleted = preparedStatement.executeUpdate();
             if (rowsDeleted == 1) {
-                System.out.println("Your account password has been deleted");
+                System.out.println("Your account has been deleted");
             } else  {
                 System.out.printf("No account found with ID: %d", id);
             }
