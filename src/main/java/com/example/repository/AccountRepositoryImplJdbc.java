@@ -4,13 +4,29 @@ import com.example.DataSource;
 
 import java.sql.*;
 
+/**
+ * Implementation of the AccountRepository interface using JDBC.
+ * This class is responsible for all persistence and retrieval operations
+ * related to user accounts in the database.
+ */
 public class AccountRepositoryImplJdbc implements AccountRepository {
     private final DataSource dataSource;
 
+    /**
+     * Constructs the repository with a specific DataSource.
+     * The DataSource provides connections to the database.
+     * * @param dataSource The source for database connections.
+     */
     public AccountRepositoryImplJdbc(DataSource dataSource) {
         this.dataSource = dataSource;
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * This implementation uses a SQL SELECT query via JDBC to validate credentials.
+     * </p>
+     */
     @Override
     public boolean authenticationForUser(String username, String password) {
 
@@ -29,7 +45,13 @@ public class AccountRepositoryImplJdbc implements AccountRepository {
         }
     }
 
-
+    /**
+     * {@inheritDoc}
+     * <p>
+     * This implementation uses JDBC and {@code Statement.RETURN_GENERATED_KEYS}
+     * to retrieve the generated {@code user_id} upon successful insertion.
+     * </p>
+     */
     @Override
     public int createAccount(String firstname, String lastname, String ssn, String password) {
 
@@ -62,6 +84,12 @@ public class AccountRepositoryImplJdbc implements AccountRepository {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Uses a SQL UPDATE statement and checks if exactly one row was updated.
+     * </p>
+     */
     @Override
     public boolean updateAccount(int userId, String newPassword) {
         String query = "update account set password = ? where user_id = ?";
@@ -80,6 +108,12 @@ public class AccountRepositoryImplJdbc implements AccountRepository {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Uses a SQL DELETE statement and checks if exactly one row was deleted.
+     * </p>
+     */
     @Override
     public boolean deleteAccount(int userId) {
         String query = "delete from account where user_id = ?";
