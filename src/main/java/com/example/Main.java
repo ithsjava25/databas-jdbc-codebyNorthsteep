@@ -1,7 +1,11 @@
 package com.example;
 
+import com.example.repository.*;
+
 import java.sql.*;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 import java.util.Scanner;
 
 public class Main {
@@ -25,24 +29,34 @@ public class Main {
                             "as system properties (-Dkey=value) or environment variables.");
         }
 
+        DataSource dataSource = new SimpleDriverManagerDataSource(jdbcUrl, dbUser, dbPass);
+        AccountRepository accountRepository = new AccountRepositoryImplJdbc(dataSource);
+        MoonMissionRepository moonMissionRepository = new MoonMissionRepositoryImplJdbc(dataSource);
 
-        try (Scanner scanner = new Scanner(System.in); Connection connection = DriverManager.getConnection(jdbcUrl, dbUser, dbPass)) {
-            System.out.println("Connected to the database");
 
-            if (!authenticationForUser(connection, scanner)) {
+        try (Scanner scanner = new Scanner(System.in)) {
+            try (Connection connection = dataSource.getConnection()) {
+                System.out.println("Connected to the database");
+            }
+
+            if (!authenticationForUser(accountRepository, scanner)) {
                 System.out.println("Username or password is incorrect. Exiting application...");
                 return;
             }
-            runOptionMenu(connection, scanner);
+            runOptionMenu(accountRepository,moonMissionRepository, scanner);
 
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Database connection failed." + e);
         }
+
+        //TODO: Lyfta ut all kod som pratar med databasen från main
+        // och placera dem i specialiserade klasser som implementerar definierade interfaces.
+
 
 
     }
 
-    private boolean authenticationForUser(Connection connection, Scanner scanner) {
+    private boolean authenticationForUser(AccountRepository accountRepository, Scanner scanner) {
         //Note from CodeRabbit - production code should use password hashing.
 
         while (true) {
@@ -56,27 +70,17 @@ public class Main {
             if (password.equals("0")) {
                 return false;
             }
-
-            String query = "SELECT name, password FROM account WHERE name = ? AND password = ?";
-            try (PreparedStatement statement = connection.prepareStatement(query)) {
-                statement.setString(1, username);
-                statement.setString(2, password);
-                try (ResultSet result = statement.executeQuery()) {
-                    if (result.next()) {
-                        System.out.println("Logged in successfully.");
-                        return true;
-                    } else {
-                        System.out.println("Invalid username or password. Try again, or exit with '0'.");
-                    }
-                }
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
+            if(accountRepository.authenticationForUser(username, password)) {
+                System.out.println("Login successful.");
+                return true;
+            } else {
+                System.out.println("Invalid username or password. Exiting application...");
             }
         }
 
     }
 
-    private void runOptionMenu(Connection connection, Scanner scanner) {
+    private void runOptionMenu(AccountRepository accountRepository,MoonMissionRepository moonMissionRepository, Scanner scanner) {
 
         System.out.println("Welcome to the CLI - Database");
         while (true) {
@@ -84,12 +88,12 @@ public class Main {
             optionMenu();
             String choice = scanner.nextLine().trim();
             switch (choice) {
-                case "1" -> listMoonMissions(connection);
-                case "2" -> getMoonMissionById(connection, scanner);
-                case "3" -> countMissionsPerYear(connection, scanner);
-                case "4" -> createAccount(connection, scanner);
-                case "5" -> updateAccount(connection, scanner);
-                case "6" -> deleteAccount(connection, scanner);
+                case "1" -> listMoonMissions(moonMissionRepository);
+                case "2" -> getMoonMissionById(moonMissionRepository, scanner);
+                case "3" -> countMissionsPerYear(moonMissionRepository, scanner);
+                case "4" -> createAccount(accountRepository, scanner);
+                case "5" -> updateAccount(accountRepository, scanner);
+                case "6" -> deleteAccount(accountRepository, scanner);
                 case "0" -> {
                     System.out.println("Exiting application...");
                     return;
@@ -113,20 +117,21 @@ public class Main {
 
     }
 
-    private void listMoonMissions(Connection connection) {
-        String query = "select spacecraft from moon_mission";
-        try (PreparedStatement statement = connection.prepareStatement(query)) {
-            try (ResultSet result = statement.executeQuery()) {
-                while (result.next()) {
-                    System.out.println(result.getString("spacecraft"));
-                }
+    private void listMoonMissions(MoonMissionRepository moonMissionRepository) {
+        List<String> moonList = moonMissionRepository.listMoonMissions();
+        try {
+            if (moonList.isEmpty()) {
+                System.out.println("No moon missions found.");
+            } else {
+                System.out.println("Moon missions:");
+                moonList.forEach(System.out::println);
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("No data found." + e);
+        }catch (Exception e) {
+            throw new RuntimeException("Failed to list moon missions.", e);
         }
     }
 
-    private void getMoonMissionById(Connection connection, Scanner scanner) {
+    private void getMoonMissionById(MoonMissionRepository moonMissionRepository, Scanner scanner) {
         System.out.print("Please enter the moon mission id: ");
 
         int missionId;
@@ -137,37 +142,32 @@ public class Main {
             return;
         }
 
-        String query = "select * from moon_mission where mission_id = ?";
-        try (PreparedStatement statement = connection.prepareStatement(query)) {
-            statement.setInt(1, missionId);
-            try (ResultSet result = statement.executeQuery()) {
+        try {
+            Optional<MoonMission> missionById = moonMissionRepository.getMoonMissionById(missionId);
+            if(missionById.isPresent()) {
+                MoonMission mission = missionById.get();
+                System.out.println("Moon mission details:");
+                System.out.printf("Mission ID: %d\n", mission.missionId());
+                System.out.printf("Spacecraft: %s\n", mission.spacecraft());
+                System.out.printf("Launch date: %s\n", mission.launchDate());
+                System.out.printf("Carrier rocket: %s\n", mission.carrierRocket());
+                System.out.printf("Operator: %s\n", mission.operator());
+                System.out.printf("Mission type: %s\n", mission.missionType());
+                System.out.printf("Outcome: %s\n", mission.outcome());
 
-                ResultSetMetaData metaData = result.getMetaData();
-                int columnCount = metaData.getColumnCount();
-
-                if (result.next()) {
-                    for (int i = 1; i <= columnCount; i++) {
-                        System.out.print(metaData.getColumnLabel(i) + "\t");
-                    }
-                    System.out.println();
-                    for (int i = 1; i <= columnCount; i++) {
-                        Object columnValue = result.getObject(i);
-                        System.out.print(columnValue + "\t");
-                    }
                 } else {
                     System.out.println("No mission found with ID: " + missionId);
                 }
-            }
-        } catch (SQLException e) {
+
+        } catch (Exception e) {
             throw new RuntimeException("Error retrieving mission" + e);
         }
     }
 
-    private void countMissionsPerYear(Connection connection, Scanner scanner) {
+    private void countMissionsPerYear(MoonMissionRepository moonMissionRepository, Scanner scanner) {
         System.out.println("Please select year (e.g 1958): ");
-        String query = "select count(*) as numberOfMissions from moon_mission where launch_date like ?";
-        int year;
 
+        int year;
         try {
             year = Integer.parseInt(scanner.nextLine().trim());
         } catch (NumberFormatException e) {
@@ -175,72 +175,53 @@ public class Main {
             return;
         }
 
+        try  {
+            int count = moonMissionRepository.countMissionsPerYear(year);
+            System.out.printf("Number of moon missions for %d: %d\n", year, count);
 
-        try (PreparedStatement statement = connection.prepareStatement(query)) {
-            statement.setString(1, year + "%");
-            try (ResultSet result = statement.executeQuery()) {
-
-                if (result.next()) {
-                    int count = result.getInt("numberOfMissions");
-                    System.out.printf("Number of missions launched in %d: %d%n", year, count);
-                }
-            }
-
-        } catch (SQLException e) {
+        } catch (Exception e) {
             throw new RuntimeException("Failed to count missions for year " + year + e);
         }
     }
 
-    private void createAccount(Connection connection, Scanner scanner) {
-        String query = "insert into account(password, first_name, last_name, ssn) values (?,?,?,?)";
+    private void createAccount(AccountRepository accountRepository, Scanner scanner) {
+
         System.out.println("Please enter your account information: ");
 
 
-        try (PreparedStatement preparedStatement = connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
+        try {
 
             System.out.println("Enter your account first name: ");
-            preparedStatement.setString(2, scanner.nextLine().trim());
+            String firstName = scanner.nextLine().trim();
 
             System.out.println("Enter your account last name: ");
-            preparedStatement.setString(3, scanner.nextLine().trim());
-
+            String lastName = scanner.nextLine().trim();
             System.out.println("Enter your account ssn(10 digits xxxxxx-xxxx): ");
-            preparedStatement.setString(4, scanner.nextLine().trim());
+            String ssn = scanner.nextLine().trim();
 
             System.out.println("Enter your account password: ");
-            preparedStatement.setString(1, scanner.nextLine().trim());
+            String password = scanner.nextLine().trim();
 
 
-            int rowsInserted = preparedStatement.executeUpdate();
-            if (rowsInserted == 1) {
-
-                try (ResultSet resultSet = preparedStatement.getGeneratedKeys()) {
-                    if (resultSet.next()) {
-                        long newID = resultSet.getLong(1);
-                        System.out.println(("User created with generated ID:" + newID));
-                    } else {
-                        System.out.println("No key generated");
-                    }
-                }
+            int newId = accountRepository.createAccount(firstName, lastName, ssn, password);
+            if (newId > 1) {
+                System.out.print("Account created successfully!\n");
             } else {
-                System.out.println("Insert failed");
+                System.out.println("Failed to create account.");
             }
-
-
-        } catch (SQLException e) {
-            throw new RuntimeException("Error trying to create account. " + e);
+        }catch (Exception e) {
+            throw new RuntimeException("Failed to create account information.", e);
         }
-    }
+        }
 
-    private void updateAccount(Connection connection, Scanner scanner) {
+    private void updateAccount(AccountRepository accountRepository, Scanner scanner) {
         //Update an account password (prompts: user_id, new password; prints confirmation).
-        String query = "update account set password = ? where user_id = ?";
 
         System.out.println("Please enter your user id to change password: ");
         int id;
         try {
             id = Integer.parseInt(scanner.nextLine().trim());
-        }catch (NumberFormatException e) {
+        } catch (NumberFormatException e) {
             System.out.println("Invalid user id entered. Please enter a numeric id.");
             return;
         }
@@ -252,41 +233,39 @@ public class Main {
             return;
         }
 
-        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
-            preparedStatement.setString(1, newPassword);
-            preparedStatement.setInt(2, id);
+        try  {
 
-            int rowsUpdated = preparedStatement.executeUpdate();
-            if (rowsUpdated == 1) {
+            boolean rowsIsUpdated = accountRepository.updateAccount(id, newPassword);
+            if (rowsIsUpdated) {
                 System.out.println("Your account password has been updated");
             } else {
                 System.out.printf("No account found with ID: %d", id);
             }
-        } catch (SQLException e) {
+        } catch (Exception e) {
             throw new RuntimeException("Error trying to change password. " + e);
         }
     }
 
-    private void deleteAccount(Connection connection, Scanner scanner) {
-        String query = "delete from account where user_id = ?";
+    private void deleteAccount(AccountRepository accountRepository, Scanner scanner) {
+
         System.out.println("Please enter your user id to delete account: ");
         int id;
         try {
             id = Integer.parseInt(scanner.nextLine().trim());
-        }catch (NumberFormatException e) {
+        } catch (NumberFormatException e) {
             System.out.println("Invalid user id entered. Please enter a numeric id.");
             return;
         }
 
-        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
-            preparedStatement.setInt(1, id);
-            int rowsDeleted = preparedStatement.executeUpdate();
-            if (rowsDeleted == 1) {
+        try  {
+
+            boolean rowsIsDeleted = accountRepository.deleteAccount(id);
+            if (rowsIsDeleted) {
                 System.out.println("Your account has been deleted");
-            } else  {
+            } else {
                 System.out.printf("No account found with ID: %d", id);
             }
-        } catch (SQLException e) {
+        } catch (Exception e) {
             throw new RuntimeException("Error trying to delete account. " + e);
         }
     }
