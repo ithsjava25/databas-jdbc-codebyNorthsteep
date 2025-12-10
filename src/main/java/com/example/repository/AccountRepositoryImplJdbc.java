@@ -55,16 +55,20 @@ public class AccountRepositoryImplJdbc implements AccountRepository {
     @Override
     public int createAccount(String firstname, String lastname, String ssn, String password) {
 
-        String query = "insert into account(first_name, last_name, ssn, password) values (?,?,?,?)";
+        String query = "insert into account(name,first_name, last_name, ssn, password) values (?,?,?,?,?)";
 
         try (Connection connection = dataSource.getConnection();
              PreparedStatement preparedStatement = connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
 
+            String firstPart = firstname.substring(0,3);
+            String lastPart = lastname.substring(0,3);
+            String name = firstPart + lastPart;
 
-            preparedStatement.setString(1, firstname);
-            preparedStatement.setString(2, lastname);
-            preparedStatement.setString(3, ssn);
-            preparedStatement.setString(4, password);
+            preparedStatement.setString(1, name);
+            preparedStatement.setString(2, firstname);
+            preparedStatement.setString(3, lastname);
+            preparedStatement.setString(4, ssn);
+            preparedStatement.setString(5, password);
 
 
             int rowsInserted = preparedStatement.executeUpdate();
