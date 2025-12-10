@@ -97,7 +97,7 @@ public class AccountRepositoryImplJdbc implements AccountRepository {
     }
 
     /**
-     * Helper-method for createAccount()
+     * Helper-method for createAccount().
      * Uses COUNT to check the database if the name already exists.
      * @param name The generated name to be checked.
      * @return True if the name already exists, else false.
