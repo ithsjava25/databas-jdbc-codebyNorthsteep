@@ -1,19 +1,31 @@
 package com.example;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+import com.example.repository.*;
+
+import java.sql.*;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.Scanner;
 
 public class Main {
 
-    static void main(String[] args) {
+    public static void main(String[] args) {
         if (isDevMode(args)) {
             DevDatabaseInitializer.start();
         }
         new Main().run();
     }
 
+    /**
+     * The main execution logic of the CLI application.
+     * It resolves database configuration, initializes the DataSource and Repositories,
+     * establishes a test connection, handles user authentication, and starts the main option menu.
+     *
+     * @throws IllegalStateException If the required database configuration (JDBC URL, user, or password) is missing
+     * from system properties or environment variables.
+     * @throws RuntimeException If the initial database connection fails.
+     */
     public void run() {
         // Resolve DB settings with precedence: System properties -> Environment variables
         String jdbcUrl = resolveConfig("APP_JDBC_URL", "APP_JDBC_URL");
@@ -26,11 +38,314 @@ public class Main {
                             "as system properties (-Dkey=value) or environment variables.");
         }
 
-        try (Connection connection = DriverManager.getConnection(jdbcUrl, dbUser, dbPass)) {
+        DataSource dataSource = new SimpleDriverManagerDataSource(jdbcUrl, dbUser, dbPass);
+        AccountRepository accountRepository = new AccountRepositoryImplJdbc(dataSource);
+        MoonMissionRepository moonMissionRepository = new MoonMissionRepositoryImplJdbc(dataSource);
+
+
+        try (Scanner scanner = new Scanner(System.in)) {
+            try (Connection connection = dataSource.getConnection()) {
+                System.out.println("Connected to the database");
+            }
+
+            if (!authenticationForUser(accountRepository, scanner)) {
+                System.out.println("Username or password is incorrect. Exiting application...");
+                return;
+            }
+            runOptionMenu(accountRepository,moonMissionRepository, scanner);
+
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Database connection failed: " + e);
         }
-        //Todo: Starting point for your code
+
+        //TODO: Lyfta ut all kod som pratar med databasen från main
+        // och placera dem i specialiserade klasser som implementerar definierade interfaces.
+
+
+
+    }
+
+    /**
+     * Handles the user login process via the command line.
+     * Prompts the user for a username and password and validates them against the database
+     * using the provided AccountRepository. The process loops until successful login, or until
+     * the user enters '0' to exit.
+     *
+     * @param accountRepository The repository responsible for checking user credentials against the database.
+     * @param scanner The Scanner object used to read user input from the console.
+     * @return {@code true} if the user is successfully authenticated, {@code false} if the user enters '0' to exit.
+     */
+    private boolean authenticationForUser(AccountRepository accountRepository, Scanner scanner) {
+        //Note from CodeRabbit - production code should use password hashing.
+
+        while (true) {
+            System.out.print("Please enter the top secret username: ");
+            String username = scanner.nextLine().trim();
+            if (username.equals("0")) {
+                return false;
+            }
+            System.out.print("Please enter the top secret password: ");
+            String password = scanner.nextLine().trim();
+            if (password.equals("0")) {
+                return false;
+            }
+            if(accountRepository.authenticationForUser(username, password)) {
+                System.out.println("Login successful.");
+                return true;
+            } else {
+                System.out.println("Invalid username or password. Please try again or enter '0' to exit.");
+            }
+        }
+
+    }
+
+    /**
+     * Displays the main menu options and handles the central command loop for the application.
+     * Directs the flow to the appropriate methods based on the user's choice.
+     *
+     * @param accountRepository The repository used for account-related operations (create, update, delete).
+     * @param moonMissionRepository The repository used for moon-mission-related operations (list, get, count).
+     * @param scanner The Scanner object used to read user input from the console.
+     */
+    private void runOptionMenu(AccountRepository accountRepository,MoonMissionRepository moonMissionRepository, Scanner scanner) {
+
+        System.out.println("Welcome to the CLI - Database");
+        while (true) {
+
+            optionMenu();
+            String choice = scanner.nextLine().trim();
+            switch (choice) {
+                case "1" -> listMoonMissions(moonMissionRepository);
+                case "2" -> getMoonMissionById(moonMissionRepository, scanner);
+                case "3" -> countMissionsPerYear(moonMissionRepository, scanner);
+                case "4" -> createAccount(accountRepository, scanner);
+                case "5" -> updateAccount(accountRepository, scanner);
+                case "6" -> deleteAccount(accountRepository, scanner);
+                case "0" -> {
+                    System.out.println("Exiting application...");
+                    return;
+                }
+                default -> System.out.println("Invalid choice. Try again.");
+
+            }
+        }
+    }
+
+    /**
+     * Prints the list of available options to the console (the menu).
+     * This method is purely responsible for outputting the menu text.
+     */
+    private void optionMenu() {
+
+        System.out.println("Please select an option:");
+        System.out.println("1) List moon missions (prints spacecraft names from `moon_mission`).");
+        System.out.println("2) Get a moon mission by mission_id (prints details for that mission).");
+        System.out.println("3) Count missions for a given year (prompts: year; prints the number of missions launched that year).");
+        System.out.println("4) Create an account (prompts: first name, last name, ssn, password; prints confirmation).");
+        System.out.println("5) Update an account password (prompts: user_id, new password; prints confirmation).");
+        System.out.println("6) Delete an account (prompts: user_id; prints confirmation).");
+        System.out.println("0) Exit.");
+
+    }
+
+    /**
+     * Retrieves a list of all moon mission spacecraft names from the database and prints them to the console.
+     *
+     * @param moonMissionRepository The repository used to fetch the mission data.
+     * @throws RuntimeException If the data retrieval process fails due to a database error.
+     */
+    private void listMoonMissions(MoonMissionRepository moonMissionRepository) {
+
+        try {
+            List<String> moonList = moonMissionRepository.listMoonMissions();
+            if (moonList.isEmpty()) {
+                System.out.println("No moon missions found.");
+            } else {
+                System.out.println("Moon missions:");
+                moonList.forEach(System.out::println);
+            }
+        }catch (Exception e) {
+            throw new RuntimeException("Failed to list moon missions.", e);
+        }
+    }
+
+    /**
+     * Prompts the user for a Mission ID, retrieves the corresponding mission details from the database,
+     * and prints the full details to the console.
+     *
+     * @param moonMissionRepository The repository used to fetch the specific mission by ID.
+     * @param scanner The Scanner object used to read the Mission ID from the console.
+     * @throws RuntimeException If a database error occurs during retrieval.
+     */
+    private void getMoonMissionById(MoonMissionRepository moonMissionRepository, Scanner scanner) {
+        System.out.print("Please enter the moon mission id: ");
+
+        int missionId;
+        try {
+            missionId = Integer.parseInt(scanner.nextLine().trim());
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid mission ID. Please enter a number.");
+            return;
+        }
+
+        try {
+            Optional<MoonMission> missionById = moonMissionRepository.getMoonMissionById(missionId);
+            if(missionById.isPresent()) {
+                MoonMission mission = missionById.get();
+                System.out.println("Moon mission details:");
+                System.out.printf("Mission ID: %d\n", mission.missionId());
+                System.out.printf("Spacecraft: %s\n", mission.spacecraft());
+                System.out.printf("Launch date: %s\n", mission.launchDate());
+                System.out.printf("Carrier rocket: %s\n", mission.carrierRocket());
+                System.out.printf("Operator: %s\n", mission.operator());
+                System.out.printf("Mission type: %s\n", mission.missionType());
+                System.out.printf("Outcome: %s\n", mission.outcome());
+
+                } else {
+                    System.out.println("No mission found with ID: " + missionId);
+                }
+
+        } catch (Exception e) {
+            throw new RuntimeException("Error retrieving mission: " + e);
+        }
+    }
+
+    /**
+     * Prompts the user for a year, retrieves the total count of moon missions launched in that year,
+     * and prints the count to the console.
+     *
+     * @param moonMissionRepository The repository used to execute the count query.
+     * @param scanner The Scanner object used to read the year from the console.
+     * @throws RuntimeException If a database error occurs during the count operation.
+     */
+    private void countMissionsPerYear(MoonMissionRepository moonMissionRepository, Scanner scanner) {
+        System.out.println("Please select year (e.g 1958): ");
+
+        int year;
+        try {
+            year = Integer.parseInt(scanner.nextLine().trim());
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid year. Please enter a number.");
+            return;
+        }
+
+        try  {
+            int count = moonMissionRepository.countMissionsPerYear(year);
+            System.out.printf("Number of moon missions for %d: %d\n", year, count);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to count missions for year " + year +": "+ e);
+        }
+    }
+
+    /**
+     * Prompts the user for all required account creation details (name, SSN, password),
+     * attempts to create the account using the repository, and prints the result.
+     *
+     * @param accountRepository The repository used to persist the new account data.
+     * @param scanner The Scanner object used to read input details from the console.
+     * @throws RuntimeException If the account creation process fails (e.g., due to a database error).
+     */
+    private void createAccount(AccountRepository accountRepository, Scanner scanner) {
+
+        System.out.println("Please enter your account information: ");
+
+
+        try {
+
+            System.out.println("Enter your account first name: ");
+            String firstName = scanner.nextLine().trim();
+
+            System.out.println("Enter your account last name: ");
+            String lastName = scanner.nextLine().trim();
+            System.out.println("Enter your account ssn(10 digits xxxxxx-xxxx): ");
+            String ssn = scanner.nextLine().trim();
+
+            System.out.println("Enter your account password: ");
+            String password = scanner.nextLine().trim();
+
+
+            int newId = accountRepository.createAccount(firstName, lastName, ssn, password);
+            if (newId > 0) {
+                System.out.print("Account created successfully!\n");
+            } else {
+                System.out.println("Failed to create account.");
+            }
+        }catch (Exception e) {
+            throw new RuntimeException("Failed to create account information.", e);
+        }
+        }
+
+    /**
+     * Prompts the user for a User ID and a new password, attempts to update the password
+     * in the database, and prints a confirmation message.
+     *
+     * @param accountRepository The repository used to execute the password update.
+     * @param scanner The Scanner object used to read the user ID and new password.
+     * @throws RuntimeException If a database error occurs during the update operation.
+     */
+    private void updateAccount(AccountRepository accountRepository, Scanner scanner) {
+        //Update an account password (prompts: user_id, new password; prints confirmation).
+
+        System.out.println("Please enter your user id to change password: ");
+        int id;
+        try {
+            id = Integer.parseInt(scanner.nextLine().trim());
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid user id entered. Please enter a numeric id.");
+            return;
+        }
+
+        System.out.println("Please enter your new account password: ");
+        String newPassword = scanner.nextLine();
+        if (newPassword == null || newPassword.isBlank()) {
+            System.out.println("Password cannot be empty.");
+            return;
+        }
+
+        try  {
+
+            boolean rowsIsUpdated = accountRepository.updateAccount(id, newPassword);
+            if (rowsIsUpdated) {
+                System.out.println("Your account password has been updated");
+            } else {
+                System.out.printf("No account found with ID: %d", id);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error trying to change password. " + e);
+        }
+    }
+
+    /**
+     * Prompts the user for a User ID, attempts to delete the corresponding account
+     * from the database, and prints a success or failure message.
+     *
+     * @param accountRepository The repository used to execute the deletion.
+     * @param scanner The Scanner object used to read the User ID from the console.
+     * @throws RuntimeException If a database error occurs during the deletion process.
+     */
+    private void deleteAccount(AccountRepository accountRepository, Scanner scanner) {
+
+        System.out.println("Please enter your user id to delete account: ");
+        int id;
+        try {
+            id = Integer.parseInt(scanner.nextLine().trim());
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid user id entered. Please enter a numeric id.");
+            return;
+        }
+
+        try  {
+
+            boolean rowsIsDeleted = accountRepository.deleteAccount(id);
+            if (rowsIsDeleted) {
+                System.out.println("Your account has been deleted");
+            } else {
+                System.out.printf("No account found with ID: %d", id);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error trying to delete account. " + e);
+        }
     }
 
     /**
