@@ -15,7 +15,7 @@ public class AccountRepositoryImplJdbc implements AccountRepository {
     /**
      * Constructs the repository with a specific DataSource.
      * The DataSource provides connections to the database.
-     * * @param dataSource The source for database connections.
+     *  @param dataSource The source for database connections.
      */
     public AccountRepositoryImplJdbc(DataSource dataSource) {
         this.dataSource = dataSource;
@@ -29,8 +29,9 @@ public class AccountRepositoryImplJdbc implements AccountRepository {
      */
     @Override
     public boolean authenticationForUser(String username, String password) {
+        //Note for CodeRabbit: production code should use password hashing in further databases.
 
-        String query = "SELECT name, password FROM account WHERE name = ? AND password = ?";
+        String query = "select name, password from account where name = ? and password = ?";
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(query)) {
 
@@ -50,19 +51,26 @@ public class AccountRepositoryImplJdbc implements AccountRepository {
      * <p>
      * This implementation uses JDBC and {@code Statement.RETURN_GENERATED_KEYS}
      * to retrieve the generated {@code user_id} upon successful insertion.
+     * Also adds a suffix to the name if the name already exists.
      * </p>
      */
     @Override
     public int createAccount(String firstname, String lastname, String ssn, String password) {
+        //Note for CodeRabbit: production code should use password hashing in further databases.
 
         String query = "insert into account(name,first_name, last_name, ssn, password) values (?,?,?,?,?)";
 
         try (Connection connection = dataSource.getConnection();
              PreparedStatement preparedStatement = connection.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
 
-            String firstPart = firstname.substring(0,3);
-            String lastPart = lastname.substring(0,3);
+            String firstPart = firstname.length() >= 3 ? firstname.substring(0,3) : firstname;
+            String lastPart = lastname.length() >= 3 ? lastname.substring(0,3) : lastname;
             String name = firstPart + lastPart;
+            int suffix = 1;
+
+            while (usernameExists(name)) {
+                name = name + suffix++;
+            }
 
             preparedStatement.setString(1, name);
             preparedStatement.setString(2, firstname);
@@ -86,6 +94,32 @@ public class AccountRepositoryImplJdbc implements AccountRepository {
             throw new RuntimeException("Error trying to create account. " + e);
 
         }
+    }
+
+    /**
+     * Helper-method for createAccount()
+     * Uses COUNT to check the database if the name already exists.
+     * @param name The generated name to be checked.
+     * @return True if the name already exists, else false.
+     */
+    public boolean usernameExists(String name) {
+        // Använd COUNT för att snabbt se om namnet redan finns
+        String query = "select count(name) from account where name = ?";
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement = connection.prepareStatement(query)) {
+
+            statement.setString(1, name);
+
+            try (ResultSet result = statement.executeQuery()) {
+                if (result.next()) {
+                    return result.getInt(1) > 0;
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Database error during username uniqueness check: " + e);
+        }
+        return false;
     }
 
     /**
